@@ -1,0 +1,12 @@
+apiVersion: v1
+kind: Pod
+metadata:
+  name: readonly-pod
+  namespace: testing
+spec:
+  serviceAccountName: readonly-user
+  containers:
+  - name: kubectl-container
+    image: bitnami/kubectl:latest
+    command: ["sleep", "3600"]
+  restartPolicy: Never

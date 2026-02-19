@@ -1,0 +1,12 @@
+apiVersion: v1
+kind: Pod
+metadata:
+  name: prod-pod
+  namespace: production
+spec:
+  serviceAccountName: prod-team
+  containers:
+  - name: kubectl-container
+    image: bitnami/kubectl:latest
+    command: ["sleep", "3600"]
+  restartPolicy: Never
