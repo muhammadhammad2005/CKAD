@@ -1,0 +1,46 @@
+apiVersion: v1
+kind: Pod
+metadata:
+  name: client-pod
+  labels:
+    app: network-test
+    role: client
+spec:
+  containers:
+  - name: client
+    image: busybox:1.35
+    command: ['sleep', '3600']
+    resources:
+      requests:
+        memory: "32Mi"
+        cpu: "100m"
+---
+apiVersion: v1
+kind: Pod
+metadata:
+  name: server-pod
+  labels:
+    app: network-test
+    role: server
+spec:
+  containers:
+  - name: server
+    image: nginx:1.21
+    ports:
+    - containerPort: 80
+    resources:
+      requests:
+        memory: "64Mi"
+        cpu: "250m"
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: server-service
+spec:
+  selector:
+    role: server
+  ports:
+  - port: 80
+    targetPort: 80
+  type: ClusterIP
