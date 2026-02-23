@@ -1,0 +1,11 @@
+openssl req -x509 -nodes -days 365 -newkey rsa:2048 \
+  -keyout tls.key -out tls.crt \
+  -subj "/CN=lab7.local/O=lab7.local" \
+  -addext "subjectAltName=DNS:lab7.local"
+
+kubectl create secret tls lab7-tls-secret \
+  --key tls.key \
+  --cert tls.crt
+
+kubectl get secrets lab7-tls-secret
+kubectl describe secret lab7-tls-secret

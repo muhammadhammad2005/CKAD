@@ -1,0 +1,64 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: web-app
+  labels:
+    app: web-app
+spec:
+  replicas: 3
+  selector:
+    matchLabels:
+      app: web-app
+  template:
+    metadata:
+      labels:
+        app: web-app
+    spec:
+      containers:
+      - name: web-app
+        image: nginx:1.21
+        ports:
+        - containerPort: 80
+        volumeMounts:
+        - name: html-content
+          mountPath: /usr/share/nginx/html
+      volumes:
+      - name: html-content
+        configMap:
+          name: web-content
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: web-content
+data:
+  index.html: |
+    <!DOCTYPE html>
+    <html>
+    <head>
+        <title>Lab 7 - Networking Demo</title>
+        <style>
+            body { font-family: Arial, sans-serif; margin: 40px; background-color: #f0f8ff; }
+            .container { max-width: 800px; margin: 0 auto; padding: 20px; }
+            h1 { color: #2c3e50; text-align: center; }
+            .info { background-color: #e8f4fd; padding: 15px; border-radius: 5px; margin: 20px 0; }
+        </style>
+    </head>
+    <body>
+        <div class="container">
+            <h1>Welcome to Lab 7: Networking and Ingress</h1>
+            <div class="info">
+                <h3>Application Information:</h3>
+                <p><strong>Service:</strong> Web Application Demo</p>
+                <p><strong>Version:</strong> 1.0</p>
+                <p><strong>Purpose:</strong> Demonstrate Kubernetes Networking and Ingress</p>
+            </div>
+            <div class="info">
+                <h3>Current Status:</h3>
+                <p>✅ Application is running successfully</p>
+                <p>✅ Connected via Kubernetes Service</p>
+                <p>🔄 Testing networking configurations</p>
+            </div>
+        </div>
+    </body>
+    </html>

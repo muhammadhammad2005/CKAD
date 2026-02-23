@@ -1,0 +1,76 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: api-app
+  labels:
+    app: api-app
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: api-app
+  template:
+    metadata:
+      labels:
+        app: api-app
+    spec:
+      containers:
+      - name: api-app
+        image: nginx:1.21
+        ports:
+        - containerPort: 80
+        volumeMounts:
+        - name: api-content
+          mountPath: /usr/share/nginx/html
+      volumes:
+      - name: api-content
+        configMap:
+          name: api-content
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: api-content
+data:
+  index.html: |
+    <!DOCTYPE html>
+    <html>
+    <head>
+        <title>API Service - Lab 7</title>
+        <style>
+            body { font-family: Arial, sans-serif; margin: 40px; background-color: #fff8dc; }
+            .container { max-width: 800px; margin: 0 auto; padding: 20px; }
+            h1 { color: #8b4513; text-align: center; }
+            .api-info { background-color: #f5f5dc; padding: 15px; border-radius: 5px; margin: 20px 0; }
+        </style>
+    </head>
+    <body>
+        <div class="container">
+            <h1>API Service Endpoint</h1>
+            <div class="api-info">
+                <h3>API Information:</h3>
+                <p><strong>Service:</strong> Backend API</p>
+                <p><strong>Path:</strong> /api</p>
+                <p><strong>Status:</strong> Active</p>
+            </div>
+            <div class="api-info">
+                <h3>Available Endpoints:</h3>
+                <p>📡 GET /api/status - Service status</p>
+                <p>📊 GET /api/health - Health check</p>
+                <p>🔧 GET /api/version - Version information</p>
+            </div>
+        </div>
+    </body>
+    </html>
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: api-app-service
+spec:
+  selector:
+    app: api-app
+  ports:
+  - port: 80
+    targetPort: 80
+  type: ClusterIP
