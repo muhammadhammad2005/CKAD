@@ -1,0 +1,12 @@
+apiVersion: v1
+kind: Pod
+metadata:
+  name: advanced-dns-test
+spec:
+  containers:
+  - name: network-tools
+    image: nicolaka/netshoot:latest
+    command:
+    - sleep
+    - "3600"
+  restartPolicy: Never
