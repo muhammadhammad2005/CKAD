@@ -1,0 +1,16 @@
+apiVersion: v1
+kind: Pod
+metadata:
+  name: cpu-intensive
+spec:
+  containers:
+  - name: cpu-load
+    image: busybox
+    command: ["sh", "-c", "while true; do echo 'CPU intensive task'; done"]
+    resources:
+      requests:
+        cpu: "100m"
+        memory: "64Mi"
+      limits:
+        cpu: "500m"
+        memory: "128Mi"
