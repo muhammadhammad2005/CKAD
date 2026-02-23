@@ -1,0 +1,22 @@
+apiVersion: v1
+kind: Pod
+metadata:
+  name: web-app
+  namespace: production
+  labels:
+    app: web
+    tier: frontend
+    environment: prod
+spec:
+  containers:
+  - name: nginx
+    image: nginx:1.21
+    ports:
+    - containerPort: 80
+    resources:
+      requests:
+        memory: "128Mi"
+        cpu: "100m"
+      limits:
+        memory: "256Mi"
+        cpu: "200m"

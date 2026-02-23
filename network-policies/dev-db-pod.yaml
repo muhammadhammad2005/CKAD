@@ -1,0 +1,25 @@
+apiVersion: v1
+kind: Pod
+metadata:
+  name: database
+  namespace: development
+  labels:
+    app: db
+    tier: backend
+    environment: dev
+spec:
+  containers:
+  - name: mysql
+    image: mysql:8.0
+    env:
+    - name: MYSQL_ROOT_PASSWORD
+      value: "devpassword"
+    ports:
+    - containerPort: 3306
+    resources:
+      requests:
+        memory: "256Mi"
+        cpu: "100m"
+      limits:
+        memory: "512Mi"
+        cpu: "200m"

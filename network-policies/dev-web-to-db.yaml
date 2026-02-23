@@ -1,0 +1,21 @@
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-web-to-db
+  namespace: development
+spec:
+  podSelector:
+    matchLabels:
+      tier: backend
+      app: db
+  policyTypes:
+  - Ingress
+  ingress:
+  - from:
+    - podSelector:
+        matchLabels:
+          tier: frontend
+          app: web
+    ports:
+    - protocol: TCP
+      port: 3306

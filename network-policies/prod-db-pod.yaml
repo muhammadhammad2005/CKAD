@@ -1,0 +1,25 @@
+apiVersion: v1
+kind: Pod
+metadata:
+  name: database
+  namespace: production
+  labels:
+    app: db
+    tier: backend
+    environment: prod
+spec:
+  containers:
+  - name: mysql
+    image: mysql:8.0
+    env:
+    - name: MYSQL_ROOT_PASSWORD
+      value: "prodpassword"
+    ports:
+    - containerPort: 3306
+    resources:
+      requests:
+        memory: "512Mi"
+        cpu: "200m"
+      limits:
+        memory: "1Gi"
+        cpu: "400m"

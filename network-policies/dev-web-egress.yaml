@@ -1,0 +1,38 @@
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: web-egress-policy
+  namespace: development
+spec:
+  podSelector:
+    matchLabels:
+      tier: frontend
+      app: web
+  policyTypes:
+  - Egress
+  egress:
+  - to:
+    - podSelector:
+        matchLabels:
+          tier: backend
+          app: db
+    ports:
+    - protocol: TCP
+      port: 3306
+  - to:
+    - namespaceSelector:
+        matchLabels:
+          environment: prod
+      podSelector:
+        matchLabels:
+          tier: backend
+          app: db
+    ports:
+    - protocol: TCP
+      port: 3306
+  - to: []
+    ports:
+    - protocol: TCP
+      port: 53
+    - protocol: UDP
+      port: 53
