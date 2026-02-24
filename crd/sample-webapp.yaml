@@ -1,0 +1,14 @@
+apiVersion: example.com/v1
+kind: WebApp
+metadata:
+  name: my-web-application
+  namespace: default
+spec:
+  replicas: 3
+  image: nginx:1.21
+  port: 80
+  env:
+  - name: ENV_TYPE
+    value: production
+  - name: LOG_LEVEL
+    value: info

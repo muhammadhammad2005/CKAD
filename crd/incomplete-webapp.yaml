@@ -1,0 +1,7 @@
+apiVersion: example.com/v1
+kind: WebApp
+metadata:
+  name: incomplete-webapp
+spec:
+  replicas: 2
+  # Missing required 'image' and 'port' fields

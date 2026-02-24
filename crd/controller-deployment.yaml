@@ -1,0 +1,66 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: webapp-controller
+  namespace: default
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: webapp-controller
+  template:
+    metadata:
+      labels:
+        app: webapp-controller
+    spec:
+      serviceAccountName: webapp-controller
+      containers:
+      - name: controller
+        image: python:3.9-slim
+        command: ["/bin/bash"]
+        args: ["-c", "apt-get update && apt-get install -y curl && curl -LO 'https://dl.k8s.io/release/$(curl -L -s https://dl.k8s.io/release/stable.txt)/bin/linux/amd64/kubectl' && chmod +x kubectl && mv kubectl /usr/local/bin/ && python3 /app/webapp-controller.py"]
+        volumeMounts:
+        - name: controller-script
+          mountPath: /app
+      volumes:
+      - name: controller-script
+        configMap:
+          name: webapp-controller-script
+          defaultMode: 0755
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: webapp-controller
+  namespace: default
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: webapp-controller
+rules:
+- apiGroups: ["example.com"]
+  resources: ["webapps"]
+  verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
+- apiGroups: ["example.com"]
+  resources: ["webapps/status"]
+  verbs: ["get", "update", "patch"]
+- apiGroups: ["apps"]
+  resources: ["deployments"]
+  verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
+- apiGroups: [""]
+  resources: ["services"]
+  verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: webapp-controller
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: webapp-controller
+subjects:
+- kind: ServiceAccount
+  name: webapp-controller
+  namespace: default

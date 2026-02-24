@@ -1,0 +1,12 @@
+apiVersion: example.com/v1
+kind: WebApp
+metadata:
+  name: test-application
+  namespace: default
+spec:
+  replicas: 2
+  image: httpd:2.4
+  port: 80
+  env:
+  - name: SERVER_NAME
+    value: test-server

@@ -1,0 +1,8 @@
+apiVersion: example.com/v1
+kind: WebApp
+metadata:
+  name: invalid-webapp
+spec:
+  replicas: 15  # This exceeds our maximum of 10
+  image: nginx:1.21
+  port: 80
