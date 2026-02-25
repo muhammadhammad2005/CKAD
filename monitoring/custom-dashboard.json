@@ -1,0 +1,55 @@
+{
+  "dashboard": {
+    "id": null,
+    "title": "Sample Web App Performance",
+    "tags": ["custom", "webapp"],
+    "timezone": "browser",
+    "panels": [
+      {
+        "id": 1,
+        "title": "Pod CPU Usage",
+        "type": "stat",
+        "targets": [
+          {
+            "expr": "sum(rate(container_cpu_usage_seconds_total{pod=~\"sample-web-app.*\"}[5m])) by (pod)",
+            "legendFormat": "{{pod}}"
+          }
+        ],
+        "gridPos": {"h": 8, "w": 12, "x": 0, "y": 0}
+      },
+      {
+        "id": 2,
+        "title": "Pod Memory Usage",
+        "type": "stat",
+        "targets": [
+          {
+            "expr": "sum(container_memory_usage_bytes{pod=~\"sample-web-app.*\"}) by (pod)",
+            "legendFormat": "{{pod}}"
+          }
+        ],
+        "gridPos": {"h": 8, "w": 12, "x": 12, "y": 0}
+      },
+      {
+        "id": 3,
+        "title": "Network I/O",
+        "type": "graph",
+        "targets": [
+          {
+            "expr": "sum(rate(container_network_receive_bytes_total{pod=~\"sample-web-app.*\"}[5m])) by (pod)",
+            "legendFormat": "Received - {{pod}}"
+          },
+          {
+            "expr": "sum(rate(container_network_transmit_bytes_total{pod=~\"sample-web-app.*\"}[5m])) by (pod)",
+            "legendFormat": "Transmitted - {{pod}}"
+          }
+        ],
+        "gridPos": {"h": 8, "w": 24, "x": 0, "y": 8}
+      }
+    ],
+    "time": {
+      "from": "now-1h",
+      "to": "now"
+    },
+    "refresh": "30s"
+  }
+}

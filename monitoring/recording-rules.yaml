@@ -1,0 +1,21 @@
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: kubernetes-recording-rules
+  namespace: monitoring
+  labels:
+    app: kube-prometheus-stack
+    release: prometheus
+spec:
+  groups:
+  - name: kubernetes-recording-rules
+    interval: 30s
+    rules:
+    - record: kubernetes:pod_cpu_usage_rate
+      expr: sum(rate(container_cpu_usage_seconds_total[5m])) by (pod, namespace)
+    
+    - record: kubernetes:pod_memory_usage_bytes
+      expr: sum(container_memory_usage_bytes) by (pod, namespace)
+    
+    - record: kubernetes:node_cpu_utilization
+      expr: 1 - avg(rate(node_cpu_seconds_total{mode="idle"}[5m])) by (instance)
