@@ -1,0 +1,25 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: baseline-deployment
+  labels:
+    app: baseline-app
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: baseline-app
+  template:
+    metadata:
+      labels:
+        app: baseline-app
+    spec:
+      containers:
+      - name: baseline-container
+        image: nginx:1.21
+        securityContext:
+          runAsUser: 1000
+          runAsGroup: 1000
+          allowPrivilegeEscalation: false
+        ports:
+        - containerPort: 8080

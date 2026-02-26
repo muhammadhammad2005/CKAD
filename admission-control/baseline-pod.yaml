@@ -1,0 +1,16 @@
+apiVersion: v1
+kind: Pod
+metadata:
+  name: baseline-pod
+  labels:
+    app: baseline-test
+spec:
+  containers:
+  - name: baseline-container
+    image: nginx:1.21
+    securityContext:
+      runAsUser: 1000
+      runAsGroup: 1000
+      allowPrivilegeEscalation: false
+    ports:
+    - containerPort: 8080
