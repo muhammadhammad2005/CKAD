@@ -1,194 +1,253 @@
 #!/usr/bin/env python3
 
 import time
-import yaml
 import subprocess
 import json
+import yaml
 from datetime import datetime
 
-def run_kubectl(cmd):
-    """Execute kubectl command and return output"""
+# -------------------------------
+# Helper: Run kubectl
+# -------------------------------
+def run_kubectl(cmd, input_data=None):
     try:
-        result = subprocess.run(cmd, shell=True, capture_output=True, text=True)
+        result = subprocess.run(
+            cmd,
+            input=input_data,
+            text=True,
+            shell=True,
+            capture_output=True
+        )
         return result.stdout, result.stderr, result.returncode
     except Exception as e:
-        print(f"Error running command: {e}")
         return "", str(e), 1
 
+
+# -------------------------------
+# Get WebApp CRs
+# -------------------------------
 def get_webapps():
-    """Get all WebApp custom resources"""
     stdout, stderr, code = run_kubectl("kubectl get webapps -o json")
-    if code == 0:
-        try:
-            return json.loads(stdout)
-        except json.JSONDecodeError:
-            return {"items": []}
-    return {"items": []}
 
-def create_deployment(webapp):
-    """Create a Deployment for the WebApp"""
-    name = webapp['metadata']['name']
-    namespace = webapp['metadata'].get('namespace', 'default')
-    spec = webapp['spec']
-    
-    # Create environment variables section
-    env_vars = ""
-    if 'env' in spec:
-        env_list = []
-        for env in spec['env']:
-            env_list.append(f"        - name: {env['name']}\n          value: \"{env['value']}\"")
-        if env_list:
-            env_vars = f"        env:\n" + "\n".join(env_list)
-    
-    deployment_yaml = f"""
-apiVersion: apps/v1
-kind: Deployment
-metadata:
-  name: {name}-deployment
-  namespace: {namespace}
-  labels:
-    app: {name}
-    managed-by: webapp-controller
-spec:
-  replicas: {spec['replicas']}
-  selector:
-    matchLabels:
-      app: {name}
-  template:
-    metadata:
-      labels:
-        app: {name}
-    spec:
-      containers:
-      - name: webapp
-        image: {spec['image']}
-        ports:
-        - containerPort: {spec['port']}
-{env_vars}
-"""
-    
-    # Write deployment to file
-    with open(f'/tmp/{name}-deployment.yaml', 'w') as f:
-        f.write(deployment_yaml)
-    
-    # Apply deployment
-    stdout, stderr, code = run_kubectl(f"kubectl apply -f /tmp/{name}-deployment.yaml")
-    return code == 0
+    if code != 0:
+        print(f"❌ Failed to fetch WebApps: {stderr}")
+        return []
 
-def create_service(webapp):
-    """Create a Service for the WebApp"""
-    name = webapp['metadata']['name']
-    namespace = webapp['metadata'].get('namespace', 'default')
-    spec = webapp['spec']
-    
-    service_yaml = f"""
-apiVersion: v1
-kind: Service
-metadata:
-  name: {name}-service
-  namespace: {namespace}
-  labels:
-    app: {name}
-    managed-by: webapp-controller
-spec:
-  selector:
-    app: {name}
-  ports:
-  - port: {spec['port']}
-    targetPort: {spec['port']}
-  type: ClusterIP
-"""
-    
-    # Write service to file
-    with open(f'/tmp/{name}-service.yaml', 'w') as f:
-        f.write(service_yaml)
-    
-    # Apply service
-    stdout, stderr, code = run_kubectl(f"kubectl apply -f /tmp/{name}-service.yaml")
-    return code == 0
+    try:
+        data = json.loads(stdout)
+        return data.get("items", [])
+    except json.JSONDecodeError:
+        return []
 
-def update_webapp_status(webapp):
-    """Update the status of the WebApp resource"""
-    name = webapp['metadata']['name']
-    namespace = webapp['metadata'].get('namespace', 'default')
-    
-    # Get deployment status
-    stdout, stderr, code = run_kubectl(f"kubectl get deployment {name}-deployment -n {namespace} -o json")
-    if code == 0:
-        try:
-            deployment = json.loads(stdout)
-            available_replicas = deployment.get('status', {}).get('availableReplicas', 0)
-            
-            # Update WebApp status
-            status_patch = {
-                "status": {
-                    "availableReplicas": available_replicas,
-                    "conditions": [
-                        {
-                            "type": "Ready",
-                            "status": "True" if available_replicas > 0 else "False",
-                            "lastTransitionTime": datetime.utcnow().isoformat() + "Z",
-                            "reason": "DeploymentReady" if available_replicas > 0 else "DeploymentNotReady",
-                            "message": f"Deployment has {available_replicas} available replicas"
-                        }
-                    ]
+
+# -------------------------------
+# Validate Spec
+# -------------------------------
+def validate_spec(webapp):
+    spec = webapp.get("spec", {})
+    required = ["image", "replicas", "port"]
+
+    for field in required:
+        if field not in spec:
+            print(f"❌ {webapp['metadata']['name']} missing '{field}'")
+            return False
+
+    return True
+
+
+# -------------------------------
+# Create / Update Deployment
+# -------------------------------
+def apply_deployment(webapp):
+    name = webapp["metadata"]["name"]
+    namespace = webapp["metadata"].get("namespace", "default")
+    spec = webapp["spec"]
+
+    deployment = {
+        "apiVersion": "apps/v1",
+        "kind": "Deployment",
+        "metadata": {
+            "name": f"{name}-deployment",
+            "namespace": namespace,
+            "labels": {
+                "app": name,
+                "managed-by": "webapp-controller"
+            },
+            "ownerReferences": [{
+                "apiVersion": webapp["apiVersion"],
+                "kind": webapp["kind"],
+                "name": name,
+                "uid": webapp["metadata"]["uid"],
+                "controller": True,
+                "blockOwnerDeletion": True
+            }]
+        },
+        "spec": {
+            "replicas": spec["replicas"],
+            "selector": {
+                "matchLabels": {"app": name}
+            },
+            "template": {
+                "metadata": {
+                    "labels": {"app": name}
+                },
+                "spec": {
+                    "containers": [{
+                        "name": "webapp",
+                        "image": spec["image"],
+                        "ports": [{
+                            "containerPort": spec["port"]
+                        }],
+                        "env": spec.get("env", [])
+                    }]
                 }
             }
-            
-            # Apply status update
-            with open(f'/tmp/{name}-status.json', 'w') as f:
-                json.dump(status_patch, f)
-            
-            run_kubectl(f"kubectl patch webapp {name} -n {namespace} --type=merge --patch-file=/tmp/{name}-status.json --subresource=status")
-            
-        except json.JSONDecodeError:
-            pass
+        }
+    }
 
-def reconcile_webapp(webapp):
-    """Reconcile a single WebApp resource"""
-    name = webapp['metadata']['name']
-    namespace = webapp['metadata'].get('namespace', 'default')
-    
-    print(f"Reconciling WebApp: {name} in namespace: {namespace}")
-    
-    # Check if deployment exists
-    stdout, stderr, code = run_kubectl(f"kubectl get deployment {name}-deployment -n {namespace}")
-    
+    stdout, stderr, code = run_kubectl(
+        "kubectl apply -f -",
+        input_data=yaml.dump(deployment)
+    )
+
     if code != 0:
-        print(f"Creating deployment for {name}")
-        create_deployment(webapp)
-        create_service(webapp)
-    else:
-        print(f"Deployment for {name} already exists")
-    
-    # Update status
-    update_webapp_status(webapp)
+        print(f"❌ Deployment failed: {stderr}")
+        return False
 
+    return True
+
+
+# -------------------------------
+# Create / Update Service
+# -------------------------------
+def apply_service(webapp):
+    name = webapp["metadata"]["name"]
+    namespace = webapp["metadata"].get("namespace", "default")
+    spec = webapp["spec"]
+
+    service = {
+        "apiVersion": "v1",
+        "kind": "Service",
+        "metadata": {
+            "name": f"{name}-service",
+            "namespace": namespace,
+            "labels": {
+                "app": name,
+                "managed-by": "webapp-controller"
+            },
+            "ownerReferences": [{
+                "apiVersion": webapp["apiVersion"],
+                "kind": webapp["kind"],
+                "name": name,
+                "uid": webapp["metadata"]["uid"],
+                "controller": True,
+                "blockOwnerDeletion": True
+            }]
+        },
+        "spec": {
+            "selector": {"app": name},
+            "ports": [{
+                "port": spec["port"],
+                "targetPort": spec["port"]
+            }],
+            "type": "ClusterIP"
+        }
+    }
+
+    stdout, stderr, code = run_kubectl(
+        "kubectl apply -f -",
+        input_data=yaml.dump(service)
+    )
+
+    if code != 0:
+        print(f"❌ Service failed: {stderr}")
+        return False
+
+    return True
+
+
+# -------------------------------
+# Update Status
+# -------------------------------
+def update_status(webapp):
+    name = webapp["metadata"]["name"]
+    namespace = webapp["metadata"].get("namespace", "default")
+
+    stdout, stderr, code = run_kubectl(
+        f"kubectl get deployment {name}-deployment -n {namespace} -o json"
+    )
+
+    if code != 0:
+        return
+
+    try:
+        deployment = json.loads(stdout)
+        available = deployment.get("status", {}).get("availableReplicas", 0)
+
+        status_patch = {
+            "status": {
+                "availableReplicas": available,
+                "conditions": [{
+                    "type": "Ready",
+                    "status": "True" if available > 0 else "False",
+                    "lastTransitionTime": datetime.utcnow().isoformat() + "Z",
+                    "reason": "DeploymentReady" if available > 0 else "NotReady",
+                    "message": f"{available} replicas available"
+                }]
+            }
+        }
+
+        run_kubectl(
+            f"kubectl patch webapp {name} -n {namespace} "
+            f"--type=merge --subresource=status "
+            f"-p '{json.dumps(status_patch)}'"
+        )
+
+    except Exception as e:
+        print(f"Status update error: {e}")
+
+
+# -------------------------------
+# Reconcile Loop
+# -------------------------------
+def reconcile(webapp):
+    name = webapp["metadata"]["name"]
+
+    print(f"🔄 Reconciling: {name}")
+
+    if not validate_spec(webapp):
+        return
+
+    if apply_deployment(webapp):
+        apply_service(webapp)
+
+    update_status(webapp)
+
+
+# -------------------------------
+# Main Loop
+# -------------------------------
 def main():
-    """Main controller loop"""
-    print("Starting WebApp Controller...")
-    
+    print("🚀 Starting WebApp Controller")
+
     while True:
         try:
-            # Get all WebApp resources
-            webapps_data = get_webapps()
-            webapps = webapps_data.get('items', [])
-            
-            print(f"Found {len(webapps)} WebApp resources")
-            
-            # Reconcile each WebApp
+            webapps = get_webapps()
+
+            print(f"📦 Found {len(webapps)} WebApps")
+
             for webapp in webapps:
-                reconcile_webapp(webapp)
-            
-            # Wait before next reconciliation
+                reconcile(webapp)
+
             time.sleep(30)
-            
+
         except KeyboardInterrupt:
-            print("Controller stopped by user")
+            print("🛑 Controller stopped")
             break
         except Exception as e:
-            print(f"Error in controller loop: {e}")
+            print(f"❌ Error: {e}")
             time.sleep(10)
+
 
 if __name__ == "__main__":
     main()
