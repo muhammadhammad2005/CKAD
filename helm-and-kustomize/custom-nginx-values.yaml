@@ -1,4 +1,4 @@
-replicaCount: 3
+replicaCount: 5
 
 service:
   type: NodePort
@@ -7,11 +7,11 @@ service:
 
 resources:
   limits:
-    cpu: 200m
-    memory: 256Mi
+    cpu: 500m
+    memory: 512Mi
   requests:
-    cpu: 100m
-    memory: 128Mi
+    cpu: 250m
+    memory: 256Mi
 
 ingress:
   enabled: false
