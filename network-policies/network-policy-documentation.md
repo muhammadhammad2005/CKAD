@@ -1,31 +1,62 @@
-# Network Policy Documentation
+#!/bin/bash
 
-## Overview
-This document describes the network policies implemented for pod isolation and security.
+echo "=== Network Policy Test Suite ==="
+echo
 
-## Policies Implemented
+# Get pod IPs
+DEV_WEB_IP=$(kubectl get pod web-app -n development -o jsonpath='{.status.podIP}')
+PROD_WEB_IP=$(kubectl get pod web-app -n production -o jsonpath='{.status.podIP}')
+DEV_DB_IP=$(kubectl get pod database -n development -o jsonpath='{.status.podIP}')
+PROD_DB_IP=$(kubectl get pod database -n production -o jsonpath='{.status.podIP}')
 
-### Default Deny Policies
-- **default-deny-ingress** (development): Blocks all ingress traffic by default
-- **default-deny-ingress** (production): Blocks all ingress traffic by default
+echo "Pod IP Addresses:"
+echo "Dev Web: $DEV_WEB_IP"
+echo "Prod Web: $PROD_WEB_IP"
+echo "Dev DB: $DEV_DB_IP"
+echo "Prod DB: $PROD_DB_IP"
+echo
 
-### Allow Policies
-- **allow-internal-dev**: Allows intra-namespace communication in development
-- **allow-web-to-db**: Allows web tier to access database tier
-- **allow-client-to-web**: Allows test client to access web applications
-- **allow-dev-web-to-prod-db**: Allows cross-namespace database access
+# Test function
+test_connection() {
+    local source_pod=$1
+    local source_ns=$2
+    local target_ip=$3
+    local target_port=$4
+    local expected=$5
+    local description=$6
+    
+    echo -n "Testing: $description ... "
+    
+    if [ "$target_port" = "80" ]; then
+        kubectl exec -it $source_pod -n $source_ns -- timeout 5 wget -qO- http://$target_ip &>/dev/null
+    else
+        kubectl exec -it $source_pod -n $source_ns -- timeout 5 nc -zv $target_ip $target_port &>/dev/null
+    fi
+    exit_code=$?
+    
+    if [ $exit_code -eq 0 ] && [ "$expected" = "ALLOW" ]; then
+        echo "✓ PASS (Allowed as expected)"
+    elif [ $exit_code -ne 0 ] && [ "$expected" = "DENY" ]; then
+        echo "✓ PASS (Blocked as expected)"
+    elif [ $exit_code -eq 0 ] && [ "$expected" = "DENY" ]; then
+        echo "✗ FAIL (Should be blocked but allowed)"
+    else
+        echo "✗ FAIL (Should be allowed but blocked)"
+    fi
+}
 
-### Advanced Policies
-- **web-egress-policy**: Controls outbound traffic from web pods
-- **advanced-access-policy**: Demonstrates complex label-based selection
+echo "Running connectivity tests..."
+echo
 
-## Security Considerations
-1. Default deny policies provide security by default
-2. Specific allow policies minimize attack surface
-3. Cross-namespace policies should be carefully reviewed
-4. Regular policy audits are recommended
+# Test allowed connections
+test_connection "test-client" "development" "$DEV_WEB_IP" "80" "ALLOW" "Client → Dev Web"
+test_connection "web-app" "development" "$DEV_DB_IP" "3306" "ALLOW" "Dev Web → Dev DB"
+test_connection "web-app" "development" "$PROD_DB_IP" "3306" "ALLOW" "Dev Web → Prod DB"
 
-## Troubleshooting
-- Check pod and namespace labels
-- Verify policy selectors match intended targets
-- Use test scripts to validate policy behavior
+# Test blocked connections
+test_connection "test-client" "development" "$PROD_WEB_IP" "80" "DENY" "Client → Prod Web"
+test_connection "test-client" "development" "$DEV_DB_IP" "3306" "DENY" "Client → Dev DB"
+test_connection "test-client" "production" "$PROD_WEB_IP" "80" "DENY" "Prod Client → Prod Web"
+
+echo
+echo "=== Test Suite Complete ==="
