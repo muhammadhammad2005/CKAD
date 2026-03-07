@@ -4,45 +4,106 @@ echo "=== Kubernetes Network Troubleshooting Script ==="
 echo "Timestamp: $(date)"
 echo
 
-# Get Pod and Service information
+pass() { echo "✓ $1"; }
+fail() { echo "✗ $1"; }
+info() { echo "• $1"; }
+
+# Check if pod exists
+check_pod() {
+    kubectl get pod "$1" >/dev/null 2>&1
+}
+
+# Check if service exists
+check_service() {
+    kubectl get service "$1" >/dev/null 2>&1
+}
+
 echo "=== Pod and Service Information ==="
+
 kubectl get pods -o wide
 echo
 kubectl get services
 echo
 
-# Test basic connectivity
-echo "=== Testing Basic Connectivity ==="
+# Validate required resources
+check_pod client-pod || { fail "client-pod not found"; exit 1; }
+check_pod server-pod || fail "server-pod not found"
+check_pod debug-pod || fail "debug-pod not found"
+
+check_service server-service || fail "server-service not found"
+
+echo
+
 SERVER_POD_IP=$(kubectl get pod server-pod -o jsonpath='{.status.podIP}' 2>/dev/null)
 SERVICE_IP=$(kubectl get service server-service -o jsonpath='{.spec.clusterIP}' 2>/dev/null)
 
-if [ ! -z "$SERVER_POD_IP" ]; then
-    echo "Testing ping to server Pod ($SERVER_POD_IP):"
-    kubectl exec client-pod -- ping -c 2 $SERVER_POD_IP 2>/dev/null || echo "Ping to server Pod failed"
-    echo
+# -------------------------
+# Connectivity Tests
+# -------------------------
+
+echo "=== Testing Pod Connectivity ==="
+
+if [ -n "$SERVER_POD_IP" ]; then
+    kubectl exec client-pod -- ping -c 2 $SERVER_POD_IP >/dev/null 2>&1
+    if [ $? -eq 0 ]; then
+        pass "Client can reach server pod ($SERVER_POD_IP)"
+    else
+        fail "Client cannot reach server pod ($SERVER_POD_IP)"
+    fi
+else
+    fail "Server pod IP not found"
 fi
 
-if [ ! -z "$SERVICE_IP" ]; then
-    echo "Testing ping to service ($SERVICE_IP):"
-    kubectl exec client-pod -- ping -c 2 $SERVICE_IP 2>/dev/null || echo "Ping to service failed"
-    echo
+echo
+
+# -------------------------
+# Service Connectivity
+# -------------------------
+
+echo "=== Testing Service Connectivity ==="
+
+if [ -n "$SERVICE_IP" ]; then
+    kubectl exec client-pod -- ping -c 2 $SERVICE_IP >/dev/null 2>&1
+    if [ $? -eq 0 ]; then
+        pass "Client can reach service ($SERVICE_IP)"
+    else
+        fail "Client cannot reach service ($SERVICE_IP)"
+    fi
+else
+    fail "Service IP not found"
 fi
 
-# Test HTTP connectivity
+echo
+
+# -------------------------
+# HTTP Tests
+# -------------------------
+
 echo "=== Testing HTTP Connectivity ==="
-if [ ! -z "$SERVER_POD_IP" ]; then
-    echo "Testing HTTP to server Pod:"
-    kubectl exec client-pod -- wget -qO- --timeout=5 http://$SERVER_POD_IP 2>/dev/null | head -5 || echo "HTTP to server Pod failed"
-    echo
+
+kubectl exec client-pod -- wget -qO- --timeout=5 http://server-service >/dev/null 2>&1
+
+if [ $? -eq 0 ]; then
+    pass "HTTP access to server-service successful"
+else
+    fail "HTTP access to server-service failed"
 fi
 
-echo "Testing HTTP to service:"
-kubectl exec client-pod -- wget -qO- --timeout=5 http://server-service 2>/dev/null | head -5 || echo "HTTP to service failed"
 echo
 
-# Test DNS resolution
+# -------------------------
+# DNS Tests
+# -------------------------
+
 echo "=== Testing DNS Resolution ==="
-kubectl exec debug-pod -- nslookup server-service 2>/dev/null || echo "DNS resolution test failed"
-echo
 
+kubectl exec debug-pod -- nslookup server-service >/dev/null 2>&1
+
+if [ $? -eq 0 ]; then
+    pass "DNS resolution for server-service successful"
+else
+    fail "DNS resolution for server-service failed"
+fi
+
+echo
 echo "=== Network Troubleshooting Complete ==="
